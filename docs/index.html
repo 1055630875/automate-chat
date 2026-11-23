@@ -590,6 +590,22 @@ const IS_LOCAL = ['127.0.0.1', 'localhost', '::1'].includes(window.location.host
 const API_DIRECT = 'https://api.deepseek.com';
 const KEY_STORE = 'automate-apikey';
 
+// GitHub Pages 上读取 config.json；填了 apiBase 就使用共享代理，访客无需 Key
+let PROXY_BASE = '';
+let configReady = Promise.resolve();
+if (!IS_LOCAL) {
+  const opts = { cache: 'no-store' };
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(5000);
+  configReady = fetch('config.json?t=' + Date.now(), opts)
+    .then(r => (r.ok ? r.json() : null))
+    .then(j => {
+      if (j && typeof j.apiBase === 'string') {
+        PROXY_BASE = j.apiBase.trim().replace(/\/+$/, '');
+      }
+    })
+    .catch(() => {});
+}
+
 const STORE_KEY = 'automate-chat-v1';
 const state = {
   messages: [],   // {role, content, reasoning, error, stopped}
@@ -956,13 +972,15 @@ async function send(textRaw, opts) {
   const text = (textRaw || inputEl.value || '').trim();
   if (!text || streaming) return;
 
+  await configReady;
+
   if (location.protocol === 'file:') {
     toast('本地文件方式不支持直连，请运行 启动.bat 或使用线上版', false);
     return;
   }
 
   // 静态托管（GitHub Pages）没有服务端，Key 需由用户填在本机
-  if (!IS_LOCAL && !getKey()) {
+  if (!IS_LOCAL && !PROXY_BASE && !getKey()) {
     openKeyModal(text);
     return;
   }
@@ -1010,22 +1028,22 @@ async function send(textRaw, opts) {
     }
     const body = JSON.stringify(reqBody);
 
-    const res = IS_LOCAL
-      ? await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-          signal: controller.signal
-        })
-      : await fetch(API_DIRECT + '/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + getKey()
-          },
-          body,
-          signal: controller.signal
-        });
+    const res = await fetch(
+      IS_LOCAL ? '/api/chat'
+        : PROXY_BASE ? PROXY_BASE + '/api/chat'
+        : API_DIRECT + '/chat/completions',
+      {
+        method: 'POST',
+        headers: PROXY_BASE || IS_LOCAL
+          ? { 'Content-Type': 'application/json' }
+          : {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + getKey()
+            },
+        body,
+        signal: controller.signal
+      }
+    );
 
     if (!res.ok) {
       if (res.status === 401) {
@@ -1108,7 +1126,9 @@ async function send(textRaw, opts) {
       if (!emsg || err.name === 'TypeError') {
         emsg = IS_LOCAL
           ? '无法连接本地服务，请确认 server.js 正在运行。'
-          : '浏览器直连失败：可能是网络问题，或当前网络屏蔽了 api.deepseek.com。可改用本地版。';
+          : PROXY_BASE
+            ? '共享代理连接失败（免费实例可能正在唤醒），请稍后重试。'
+            : '浏览器直连失败：可能是网络问题，或当前网络屏蔽了 api.deepseek.com。可改用本地版。';
       }
       assistant.content = emsg;
       refs.root.classList.add('error');
@@ -1254,6 +1274,11 @@ const keyState = document.getElementById('keyState');
 let pendingSend = null;
 
 function refreshKeyState() {
+  if (!IS_LOCAL && PROXY_BASE) {
+    keyState.textContent = '共享代理';
+    keyState.className = 'key-state';
+    return;
+  }
   if (!IS_LOCAL) {
     const k = getKey();
     keyState.textContent = k ? '已保存 ' + maskKey(k) : '未设置';
@@ -1265,6 +1290,10 @@ function refreshKeyState() {
 }
 
 function openKeyModal(text) {
+  if (!IS_LOCAL && PROXY_BASE) {
+    toast('当前使用共享代理，无需填写 Key', true);
+    return;
+  }
   if (text) pendingSend = text;
   keyInput.value = '';
   keyInput.placeholder = getKey() ? '已保存 ' + maskKey(getKey()) + '（留空保持不变）' : 'sk-...';
@@ -1336,6 +1365,32 @@ document.getElementById('btnSave').addEventListener('click', () => {
 
 /* ---------- 健康检查 ---------- */
 async function checkHealth() {
+  await configReady;
+
+  if (!IS_LOCAL && PROXY_BASE) {
+    statusDot.className = 'dot ok';
+    statusText.textContent = '共享代理 · 无需 Key';
+    connBox.className = 'conn';
+    connText.textContent = '共享代理：' + PROXY_BASE;
+    try {
+      const r = await fetch(PROXY_BASE + '/api/health', { signal: AbortSignal.timeout(8000) });
+      const j = await r.json();
+      if (j && j.keySet) {
+        connText.textContent = '共享代理在线 · 模型 ' + (j.model || 'deepseek-chat') +
+          ' · 每日上限 ' + ((j.limits && j.limits.daily) || '-');
+      } else {
+        statusDot.className = 'dot bad';
+        statusText.textContent = '代理未配置 Key';
+        connText.textContent = '代理在线，但服务端没有配置 DEEPSEEK_API_KEY。';
+      }
+    } catch (e) {
+      statusDot.className = 'dot';
+      statusText.textContent = '共享代理 · 唤醒中';
+      connText.textContent = '共享代理暂时未响应（免费实例可能休眠），发送消息会自动唤醒。';
+    }
+    return;
+  }
+
   if (!IS_LOCAL) {
     const has = !!getKey();
     statusDot.className = 'dot ' + (has ? 'ok' : 'bad');
@@ -1389,19 +1444,32 @@ refreshKeyState();
 checkHealth();
 inputEl.focus();
 
-if (!IS_LOCAL) {
-  const note = document.getElementById('sideNote');
-  if (note) note.textContent = '静态托管 · Key 只保存在本浏览器，不会上传。';
-  const sub = document.getElementById('setSub');
-  if (sub) sub.textContent = '设置保存在本机浏览器；API Key 只写入 localStorage，不会上传到任何地方。';
-} else {
-  const keyField = document.getElementById('keyField');
-  if (keyField) keyField.style.display = 'none';
-}
+configReady.then(() => {
+  applyMode();
+  refreshKeyState();
+  checkHealth();
+  if (!IS_LOCAL && !PROXY_BASE && !getKey()) {
+    setTimeout(() => { if (!getKey()) openKeyModal(); }, 900);
+  }
+});
 
-// 静态托管首次访问：引导填写 Key
-if (!IS_LOCAL && !getKey()) {
-  setTimeout(() => { if (!getKey()) openKeyModal(); }, 900);
+function applyMode() {
+  const keyField = document.getElementById('keyField');
+  const note = document.getElementById('sideNote');
+  const sub = document.getElementById('setSub');
+  if (IS_LOCAL) {
+    if (keyField) keyField.style.display = 'none';
+    return;
+  }
+  if (PROXY_BASE) {
+    if (keyField) keyField.style.display = 'none';
+    if (note) note.textContent = '共享代理 · 打开即用，无需填写 Key。';
+    if (sub) sub.textContent = '当前使用共享代理（Key 在服务端），本站访客无需填写。';
+  } else {
+    if (keyField) keyField.style.display = '';
+    if (note) note.textContent = '静态托管 · Key 只保存在本浏览器，不会上传。';
+    if (sub) sub.textContent = '设置保存在本机浏览器；API Key 只写入 localStorage，不会上传到任何地方。';
+  }
 }
 </script>
 

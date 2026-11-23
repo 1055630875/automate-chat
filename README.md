@@ -20,10 +20,20 @@ https://1055630875.github.io/automate-chat/
 
 ## 第一次使用
 
-GitHub Pages 是纯静态托管，没有服务器替你保管 API Key，所以：
+GitHub Pages 是纯静态托管，没有服务器替你保管 API Key。有两种模式：
+
+### 模式 A：共享代理（推荐，访客无需 Key）
+
+如果 `config.json` 里的 `apiBase` 已填写，页面会自动走代理，访客打开即用，不弹 Key。
+
+代理部署见 [PROXY_DEPLOY.md](PROXY_DEPLOY.md)，源码在 `proxy/`。
+
+### 模式 B：各自填 Key
+
+`config.json` 的 `apiBase` 为空时，页面会要求访问者填自己的 Key：
 
 1. 打开页面后，会弹出「连接 DeepSeek」；
-2. 填入你自己的 DeepSeek API Key（`sk-...`）；
+2. 填入自己的 DeepSeek API Key（`sk-...`）；
 3. 点「保存」。
 
 Key 只写入浏览器的 `localStorage`，不会上传到 GitHub 或任何第三方。换浏览器、清理站点数据、无痕模式都需要重新填写。
@@ -68,7 +78,9 @@ Pages 会自动重新发布，通常 1 分钟内生效（可能需要 Ctrl+F5）
 | 文件 | 说明 |
 |---|---|
 | `index.html` | 整个应用（HTML + CSS + JS 单文件） |
+| `config.json` | 共享代理地址；`apiBase` 为空时退回「各自填 Key」模式 |
 | `docs/index.html` | 同一份应用的副本，供 Pages 选 `/docs` 时使用 |
+| `proxy/` | 共享代理源码（Dockerfile + Node 服务），部署方法见 `PROXY_DEPLOY.md` |
 | `.nojekyll` | 关闭 Jekyll 处理，避免静态资源被忽略 |
 | `README.md` | 本文件 |
 
