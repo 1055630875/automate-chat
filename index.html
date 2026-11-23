@@ -383,7 +383,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         模型与提示词设置
       </button>
-      <div class="side-note">本地运行 · Key 仅保存在服务端，不进入浏览器。</div>
+      <div class="side-note" id="sideNote">本地运行 · Key 仅保存在服务端，不进入浏览器。</div>
     </div>
   </aside>
 
@@ -456,7 +456,7 @@
   <div class="mask" data-close></div>
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="setTitle">
     <h3 id="setTitle">模型与提示词</h3>
-    <p class="sub">设置保存在本机浏览器；API Key 由本地服务读取 config.json，不会出现在这里。</p>
+    <p class="sub" id="setSub">设置保存在本机浏览器；API Key 由本地服务读取 config.json，不会出现在这里。</p>
 
     <div class="field">
       <div class="conn" id="connBox"><span class="dot"></span><span id="connText">检查中…</span></div>
@@ -496,7 +496,7 @@
       </select>
     </div>
 
-    <div class="field">
+    <div class="field" id="keyField">
       <label>API Key（仅保存在本机浏览器）</label>
       <div class="key-row">
         <span class="key-state none" id="keyState">未设置</span>
@@ -1388,6 +1388,16 @@ downBtn.hidden = true;
 refreshKeyState();
 checkHealth();
 inputEl.focus();
+
+if (!IS_LOCAL) {
+  const note = document.getElementById('sideNote');
+  if (note) note.textContent = '静态托管 · Key 只保存在本浏览器，不会上传。';
+  const sub = document.getElementById('setSub');
+  if (sub) sub.textContent = '设置保存在本机浏览器；API Key 只写入 localStorage，不会上传到任何地方。';
+} else {
+  const keyField = document.getElementById('keyField');
+  if (keyField) keyField.style.display = 'none';
+}
 
 // 静态托管首次访问：引导填写 Key
 if (!IS_LOCAL && !getKey()) {
