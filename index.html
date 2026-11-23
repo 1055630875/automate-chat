@@ -998,11 +998,17 @@ async function send(textRaw, opts) {
   currentAbort = controller;
 
   try {
-    const body = JSON.stringify({
+    const reqBody = {
       messages: payload,
       model: state.settings.model,
-      temperature: Number(state.settings.temperature)
-    });
+      stream: true,
+      max_tokens: 4096
+    };
+    // deepseek-reasoner 不支持 temperature
+    if (state.settings.model !== 'deepseek-reasoner') {
+      reqBody.temperature = Number(state.settings.temperature);
+    }
+    const body = JSON.stringify(reqBody);
 
     const res = IS_LOCAL
       ? await fetch('/api/chat', {
