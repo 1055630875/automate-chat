@@ -51,6 +51,8 @@ Key 只写入浏览器的 `localStorage`，不会上传到 GitHub 或任何第�
 https://1055630875.github.io/automate-chat/
 ```
 
+> 如果你习惯把 Pages 指向 `/docs`：仓库里也放了一份 `docs/index.html`，Folder 选 `/docs` 同样可用。两种方式选一种即可，不要来回切。
+
 ## 以后更新
 
 改完 `index.html` 后，在 GitHub Desktop 里：
@@ -66,6 +68,7 @@ Pages 会自动重新发布，通常 1 分钟内生效（可能需要 Ctrl+F5）
 | 文件 | 说明 |
 |---|---|
 | `index.html` | 整个应用（HTML + CSS + JS 单文件） |
+| `docs/index.html` | 同一份应用的副本，供 Pages 选 `/docs` 时使用 |
 | `.nojekyll` | 关闭 Jekyll 处理，避免静态资源被忽略 |
 | `README.md` | 本文件 |
 
