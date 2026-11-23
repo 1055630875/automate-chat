@@ -229,6 +229,39 @@
   .composer textarea::placeholder{color:#9aa9be}
   .composer-bar{display:flex;align-items:center;gap:8px;padding:5px 2px 0}
   .composer-bar .tip{font-size:11px;color:#93a3b8;margin-right:auto}
+  .attach-btn{
+    width:34px;height:34px;flex:none;display:grid;place-items:center;
+    border:1px solid #dfe6f0;background:#fff;border-radius:9px;color:#5c6b82;
+  }
+  .attach-btn:hover{border-color:#bfe0d2;color:#0e9f6e;background:#f6fdfa}
+  .attach-btn:disabled{opacity:.45;cursor:not-allowed}
+  .attach-tray{display:flex;flex-wrap:wrap;gap:8px;padding:2px 2px 8px}
+  .attach-tray[hidden]{display:none}
+  .att{display:flex;align-items:center;gap:8px;background:#f7f9fd;border:1px solid #e4eaf4;border-radius:10px;padding:5px 6px 5px 5px;max-width:270px}
+  .att-thumb{width:34px;height:34px;border-radius:7px;overflow:hidden;flex:none;background:#e9eef7;display:grid;place-items:center;font-size:15px;color:#5c6b82}
+  .att-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .att-meta{min-width:0;line-height:1.35}
+  .att-meta b{display:block;font-size:11.5px;color:#243449;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+  .att-meta small{font-size:10.5px;color:#8595ab}
+  .att-x{border:0;background:transparent;color:#93a3b8;font-size:16px;line-height:1;padding:2px 5px;border-radius:6px}
+  .att-x:hover{background:#e9eef7;color:#0e1a2b}
+  .att.error{background:#fdf5f4;border-color:#f3ddd9}
+  .att.error small{color:#b03a28}
+  .att.reading{background:#fffaeb;border-color:#f6e7be}
+
+  .user-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .user-imgs img{max-width:190px;max-height:150px;border-radius:9px;border:1px solid rgba(255,255,255,.18);display:block;background:#fff}
+  .user-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .user-file{font-size:11px;color:#dbe7f8;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:3px 8px;max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .user-note{font-size:11px;color:#a9bcd8;margin-top:6px}
+
+  .drop-veil{
+    position:fixed;inset:0;z-index:95;background:rgba(10,27,51,.55);
+    display:none;place-items:center;color:#fff;font-size:15px;backdrop-filter:blur(2px);
+  }
+  .drop-veil.show{display:grid}
+  .drop-veil .dz{border:2px dashed rgba(255,255,255,.45);border-radius:18px;padding:44px 64px;text-align:center;background:rgba(255,255,255,.06)}
+  .drop-veil .dz b{display:block;font-size:18px;margin-bottom:6px}
   .btn-send{
     display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border:0;
     border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;
@@ -435,9 +468,13 @@
     <div class="composer-wrap">
       <div class="composer-inner">
         <div class="composer">
-          <textarea id="input" rows="1" placeholder="问一个自动化专业的问题，例如：单位负反馈 G(s)=10/(s(s+1))，求超调量…"></textarea>
+          <div class="attach-tray" id="attachTray" hidden></div>
+          <textarea id="input" rows="1" placeholder="问一个自动化专业的问题，可拖入图片/PDF，或粘贴截图…"></textarea>
           <div class="composer-bar">
-            <span class="tip">Enter 发送 · Shift + Enter 换行</span>
+            <button class="attach-btn" id="btnAttach" type="button" title="上传图片或文件" aria-label="上传图片或文件">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <span class="tip">Enter 发送 · Shift + Enter 换行 · 支持拖拽/粘贴</span>
             <button class="btn-stop" id="btnStop">停止生成</button>
             <button class="btn-send" id="btnSend">
               发送
@@ -448,6 +485,8 @@
         <p class="disclaimer">内容由 AI 生成，公式、数值与安全操作请自行核对；涉及真实设备请由教师或持证人员确认。</p>
       </div>
     </div>
+    <input type="file" id="fileInput" multiple hidden
+      accept="image/*,.pdf,.docx,.txt,.md,.csv,.json,.log,.py,.m,.c,.h,.cpp,.js,.ts,.html,.css,.xml,.yml,.yaml,.ini,.java,.ino">
   </main>
 </div>
 
@@ -532,6 +571,8 @@
     </div>
   </div>
 </div>
+
+<div class="drop-veil" id="dropVeil"><div class="dz"><b>松开即可上传</b>图片、PDF、Word 或代码文件</div></div>
 
 <div class="toast" id="toast"><b>✓</b><span id="toastMsg">已复制</span></div>
 
@@ -622,9 +663,19 @@ try {
 
 function saveState() {
   try {
-    const trimmed = state.messages.slice(-80).map(m => ({
-      role: m.role, content: m.content, reasoning: m.reasoning || '', error: !!m.error, stopped: !!m.stopped
-    }));
+    const trimmed = state.messages.slice(-80).map(m => {
+      const hasAtt = (m.images && m.images.length) || (m.files && m.files.length);
+      return {
+        role: m.role,
+        content: hasAtt ? (m.displayText || '') : m.content,
+        displayText: m.displayText,
+        reasoning: m.reasoning || '',
+        error: !!m.error,
+        stopped: !!m.stopped,
+        imageCount: m.images ? m.images.length : 0,
+        files: m.files ? m.files.map(f => ({ name: f.name, size: f.size, kind: f.kind })) : undefined
+      };
+    });
     localStorage.setItem(STORE_KEY, JSON.stringify({ messages: trimmed, settings: state.settings }));
   } catch (e) {}
 }
@@ -866,6 +917,266 @@ function autoGrow() {
   inputEl.style.height = Math.min(inputEl.scrollHeight, 190) + 'px';
 }
 
+/* ---------- 附件：图片 / PDF / Word / 文本 ---------- */
+const btnAttach = document.getElementById('btnAttach');
+const fileInput = document.getElementById('fileInput');
+const attachTray = document.getElementById('attachTray');
+const dropVeil = document.getElementById('dropVeil');
+
+const MAX_ATTACH = 4;
+const MAX_IMAGE = 8 * 1024 * 1024;
+const MAX_FILE = 15 * 1024 * 1024;
+const MAX_TEXT = 40000;
+const TEXT_EXTS = new Set(['txt', 'md', 'markdown', 'csv', 'json', 'log', 'py', 'm', 'c', 'h', 'cpp', 'js', 'ts', 'html', 'css', 'xml', 'yml', 'yaml', 'ini', 'java', 'ino', 'tex']);
+
+let attachments = [];
+let processing = 0;
+
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function renderTray() {
+  attachTray.innerHTML = '';
+  if (!attachments.length) {
+    attachTray.hidden = true;
+    return;
+  }
+  attachTray.hidden = false;
+  attachments.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'att' + (a.status === 'error' ? ' error' : a.status === 'reading' ? ' reading' : '');
+
+    const th = document.createElement('div');
+    th.className = 'att-thumb';
+    if (a.kind === 'image' && a.preview) {
+      const img = new Image();
+      img.src = a.preview;
+      img.alt = a.name;
+      th.appendChild(img);
+    } else {
+      th.textContent = a.kind === 'pdf' ? 'PDF' : a.kind === 'docx' ? 'DOC' : 'TXT';
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'att-meta';
+    const b = document.createElement('b');
+    b.textContent = a.name;
+    const s = document.createElement('small');
+    if (a.status === 'reading') s.textContent = '解析中…';
+    else if (a.status === 'error') s.textContent = a.error || '解析失败';
+    else s.textContent = fmtSize(a.size) + (a.kind !== 'image' && a.text ? ' · ' + a.text.length + ' 字' : '');
+    meta.appendChild(b);
+    meta.appendChild(s);
+
+    const x = document.createElement('button');
+    x.className = 'att-x';
+    x.type = 'button';
+    x.textContent = '×';
+    x.title = '移除';
+    x.addEventListener('click', () => {
+      attachments = attachments.filter(v => v.id !== a.id);
+      renderTray();
+    });
+
+    el.appendChild(th);
+    el.appendChild(meta);
+    el.appendChild(x);
+    attachTray.appendChild(el);
+  });
+}
+
+function addFiles(list) {
+  const files = Array.from(list || []);
+  for (const file of files) {
+    if (attachments.length >= MAX_ATTACH) {
+      toast('最多上传 ' + MAX_ATTACH + ' 个附件', false);
+      break;
+    }
+    const name = file.name || ('截图-' + Date.now() + '.png');
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const kind = file.type && file.type.startsWith('image/') ? 'image'
+      : (file.type === 'application/pdf' || ext === 'pdf') ? 'pdf'
+      : (ext === 'docx' || (file.type && file.type.indexOf('wordprocessingml') >= 0)) ? 'docx'
+      : TEXT_EXTS.has(ext) ? 'text'
+      : 'other';
+
+    if (kind === 'other') {
+      toast('暂不支持 ' + name + '，请上传图片 / PDF / Word / 文本', false);
+      continue;
+    }
+    if (kind === 'image' && file.size > MAX_IMAGE) {
+      toast(name + ' 超过 8MB', false);
+      continue;
+    }
+    if (kind !== 'image' && file.size > MAX_FILE) {
+      toast(name + ' 超过 15MB', false);
+      continue;
+    }
+
+    const att = {
+      id: 'a' + Date.now() + Math.random().toString(16).slice(2),
+      name,
+      size: file.size,
+      kind,
+      status: 'reading'
+    };
+    attachments.push(att);
+    renderTray();
+    processAttachment(att, file);
+  }
+}
+
+async function processAttachment(att, file) {
+  processing++;
+  try {
+    if (att.kind === 'image') {
+      att.dataUrl = await downscaleImage(file);
+      att.preview = att.dataUrl;
+    } else if (att.kind === 'text') {
+      att.text = (await readTextFile(file)).slice(0, MAX_TEXT);
+      if (!att.text.trim()) throw new Error('文件是空的');
+    } else if (att.kind === 'pdf') {
+      att.text = (await extractPdf(file)).slice(0, MAX_TEXT);
+    } else if (att.kind === 'docx') {
+      att.text = (await extractDocx(file)).slice(0, MAX_TEXT);
+    }
+    att.status = 'ready';
+  } catch (e) {
+    att.status = 'error';
+    att.error = e.message || '解析失败';
+  } finally {
+    processing--;
+    renderTray();
+  }
+}
+
+function downscaleImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const max = 1024;
+        let w = img.naturalWidth || img.width;
+        let h = img.naturalHeight || img.height;
+        const scale = Math.min(1, max / Math.max(w, h));
+        w = Math.max(1, Math.round(w * scale));
+        h = Math.max(1, Math.round(h * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(e);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('图片解码失败'));
+    };
+    img.src = url;
+  });
+}
+
+async function readTextFile(file) {
+  const buf = await file.arrayBuffer();
+  const u8 = new Uint8Array(buf);
+  let text = new TextDecoder('utf-8', { fatal: false }).decode(u8);
+  if (text.indexOf('\uFFFD') >= 0) {
+    try {
+      const gbk = new TextDecoder('gbk').decode(u8);
+      if (gbk && gbk.indexOf('\uFFFD') < 0) text = gbk;
+    } catch (e) {}
+  }
+  return text;
+}
+
+const scriptCache = {};
+function loadScript(src) {
+  if (scriptCache[src]) return scriptCache[src];
+  scriptCache[src] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => {
+      delete scriptCache[src];
+      reject(new Error('组件加载失败，请检查网络'));
+    };
+    document.head.appendChild(s);
+  });
+  return scriptCache[src];
+}
+
+async function extractPdf(file) {
+  await loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
+  if (!window.pdfjsLib) throw new Error('PDF 组件未加载');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pages = Math.min(doc.numPages, 20);
+  let out = '';
+  for (let i = 1; i <= pages; i++) {
+    const page = await doc.getPage(i);
+    const tc = await page.getTextContent();
+    out += tc.items.map(it => it.str).join(' ') + '\n';
+  }
+  if (!out.trim()) throw new Error('PDF 没有可提取的文字（可能是扫描件）');
+  return out;
+}
+
+async function extractDocx(file) {
+  await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
+  if (!window.mammoth) throw new Error('Word 组件未加载');
+  const r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  if (!r.value || !r.value.trim()) throw new Error('Word 文件没有文字');
+  return r.value;
+}
+
+btnAttach.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
+  fileInput.value = '';
+});
+
+inputEl.addEventListener('paste', (e) => {
+  const files = e.clipboardData && e.clipboardData.files;
+  if (files && files.length) {
+    e.preventDefault();
+    addFiles(files);
+  }
+});
+
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => {
+  if (!e.dataTransfer || Array.from(e.dataTransfer.types || []).indexOf('Files') < 0) return;
+  e.preventDefault();
+  dragDepth++;
+  dropVeil.classList.add('show');
+});
+window.addEventListener('dragover', (e) => {
+  if (e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0) e.preventDefault();
+});
+window.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) dropVeil.classList.remove('show');
+});
+window.addEventListener('drop', (e) => {
+  if (!e.dataTransfer) return;
+  e.preventDefault();
+  dragDepth = 0;
+  dropVeil.classList.remove('show');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
 /* ---------- 消息渲染 ---------- */
 function appendMessage(msg, isNew) {
   const root = document.createElement('div');
@@ -909,7 +1220,43 @@ function appendMessage(msg, isNew) {
   tools.appendChild(copyBtn);
 
   if (msg.role === 'user') {
-    content.textContent = msg.content;
+    const body = document.createElement('div');
+    body.className = 'user-body';
+    const text = msg.displayText !== undefined ? msg.displayText : msg.content;
+    if (text) {
+      const t = document.createElement('div');
+      t.textContent = text;
+      body.appendChild(t);
+    }
+    if (msg.images && msg.images.length) {
+      const row = document.createElement('div');
+      row.className = 'user-imgs';
+      msg.images.forEach(src => {
+        const im = document.createElement('img');
+        im.src = src;
+        im.alt = '上传的图片';
+        im.loading = 'lazy';
+        row.appendChild(im);
+      });
+      body.appendChild(row);
+    } else if (msg.imageCount) {
+      const n = document.createElement('div');
+      n.className = 'user-note';
+      n.textContent = '图片 ×' + msg.imageCount + '（仅本次会话有效）';
+      body.appendChild(n);
+    }
+    if (msg.files && msg.files.length) {
+      const row = document.createElement('div');
+      row.className = 'user-files';
+      msg.files.forEach(f => {
+        const c = document.createElement('span');
+        c.className = 'user-file';
+        c.textContent = f.name;
+        row.appendChild(c);
+      });
+      body.appendChild(row);
+    }
+    content.appendChild(body);
   } else if (msg.error) {
     content.textContent = msg.content;
     tools.innerHTML = '';
@@ -956,21 +1303,52 @@ function lastTurns(list, turns) {
   return out.reverse();
 }
 
+function toApiMessage(m) {
+  if (m.role === 'user' && m.images && m.images.length) {
+    const parts = [];
+    if (m.content && String(m.content).trim()) parts.push({ type: 'text', text: m.content });
+    m.images.forEach(url => parts.push({ type: 'image_url', image_url: { url } }));
+    return { role: 'user', content: parts };
+  }
+  return { role: m.role, content: m.content };
+}
+
 function buildPayload(list) {
   const sys = (state.settings.system || '').trim();
   const turns = Number(state.settings.turns) || 8;
   const usable = (list || []).filter(m => !m.error && typeof m.content === 'string' && m.content.trim());
   const history = lastTurns(usable, turns);
+
+  // 历史里最多保留最近 6 张图，避免请求体过大
+  let imgBudget = 6;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (m.role === 'user' && m.images && m.images.length) {
+      const keep = Math.max(0, Math.min(m.images.length, imgBudget));
+      imgBudget -= keep;
+      if (keep === 0) history[i] = { role: m.role, content: m.content };
+      else if (keep < m.images.length) history[i] = { role: m.role, content: m.content, images: m.images.slice(0, keep) };
+    }
+  }
+
   const payload = [];
   if (sys) payload.push({ role: 'system', content: sys });
-  history.forEach(m => payload.push({ role: m.role, content: m.content }));
+  history.forEach(m => payload.push(toApiMessage(m)));
   return payload;
 }
 
 async function send(textRaw, opts) {
   opts = opts || {};
   const text = (textRaw || inputEl.value || '').trim();
-  if (!text || streaming) return;
+
+  if (streaming) return;
+  if (!opts.skipUser && processing > 0) {
+    toast('附件还在解析，请稍等', false);
+    return;
+  }
+
+  const atts = opts.skipUser ? [] : attachments.filter(a => a.status === 'ready');
+  if (!text && !atts.length) return;
 
   await configReady;
 
@@ -981,19 +1359,38 @@ async function send(textRaw, opts) {
 
   // 静态托管（GitHub Pages）没有服务端，Key 需由用户填在本机
   if (!IS_LOCAL && !PROXY_BASE && !getKey()) {
-    openKeyModal(text);
+    openKeyModal(text || '请分析我上传的内容。');
     return;
   }
+
+  const imgAtts = atts.filter(a => a.kind === 'image');
+  const fileAtts = atts.filter(a => a.kind !== 'image');
+  let fullText = text;
+  for (const f of fileAtts) {
+    fullText += (fullText ? '\n\n' : '') + '【附件：' + f.name + '】\n' + f.text;
+  }
+  if (!fullText) fullText = '请分析我上传的内容。';
+
+  const userMsg = {
+    role: 'user',
+    content: fullText,
+    displayText: text,
+    images: imgAtts.map(a => a.dataUrl),
+    imageNames: imgAtts.map(a => a.name),
+    files: fileAtts.map(a => ({ name: a.name, size: a.size, kind: a.kind })),
+    time: nowTime()
+  };
 
   // 先按「已有历史 + 本条提问」构造请求，再写入界面，避免重复
   const payload = opts.skipUser
     ? buildPayload(state.messages)
-    : buildPayload(state.messages.concat([{ role: 'user', content: text }]));
+    : buildPayload(state.messages.concat([userMsg]));
 
   if (!opts.skipUser) {
-    const userMsg = { role: 'user', content: text, time: nowTime() };
     state.messages.push(userMsg);
     appendMessage(userMsg, true);
+    attachments = [];
+    renderTray();
   }
 
   inputEl.value = '';

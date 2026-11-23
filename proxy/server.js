@@ -23,7 +23,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
 const DAILY_LIMIT = Number(process.env.DAILY_LIMIT || 400);
 const PER_IP_HOURLY = Number(process.env.PER_IP_HOURLY || 30);
 const MAX_TOKENS = Number(process.env.MAX_TOKENS || 2048);
-const MAX_BODY = 512 * 1024;
+const MAX_BODY = 8 * 1024 * 1024;
 const MAX_MESSAGES = 40;
 
 let dayKey = new Date().toISOString().slice(0, 10);
